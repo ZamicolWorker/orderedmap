@@ -8,6 +8,8 @@ Retains order of keys in maps
 
 Can be JSON serialized / deserialized
 
+Forked from [Ian Coleman's orderedmap](https://github.com/iancoleman/orderedmap).
+
 # Usage
 
 ```go
@@ -15,7 +17,7 @@ package main
 
 import (
     "encoding/json"
-    "github.com/iancoleman/orderedmap"
+    "github.com/zamicol/orderedmap"
 )
 
 func main() {
