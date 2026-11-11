@@ -136,7 +136,20 @@ func (o *OrderedMap) Sort(lessFunc func(a *Pair, b *Pair) bool) {
 
 // UnmarshalJSON errors on duplicate JSON keys unless SetJSONLastValueWins(true)
 // was called. "Last value wins" is bad practice. See CheckDuplicate.
+// A JSON null unmarshals to an empty OrderedMap.
+//
+// encoding/json sets a pointer to nil when unmarshaling JSON null into *T, and
+// does not call UnmarshalJSON. To apply null to an existing OrderedMap, pass
+// the *OrderedMap to json.Unmarshal (not a pointer to it) or call
+// UnmarshalJSON directly.
 func (o *OrderedMap) UnmarshalJSON(b []byte) error {
+	b = bytes.TrimSpace(b)
+	if bytes.Equal(b, []byte("null")) {
+		o.keys = []string{}
+		o.values = map[string]any{}
+		return nil
+	}
+
 	var err error
 	if !o.jsonLastValueWins {
 		_, err = CheckDuplicate(json.NewDecoder(bytes.NewReader(b)))

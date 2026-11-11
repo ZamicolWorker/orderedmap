@@ -377,6 +377,50 @@ func TestUnmarshalJSON(t *testing.T) {
 	}
 }
 
+func TestUnmarshalJSONNull(t *testing.T) {
+	// json.Unmarshal into a *OrderedMap (not **OrderedMap). Passing &o would
+	// set o to nil without calling UnmarshalJSON.
+	o := New()
+	o.Set("a", 1)
+	if err := json.Unmarshal([]byte("null"), o); err != nil {
+		t.Fatal(err)
+	}
+	if len(o.Keys()) != 0 {
+		t.Fatalf("keys after null: %v", o.Keys())
+	}
+	if vals := o.Values(); len(vals) != 0 {
+		t.Fatalf("values after null: %v", vals)
+	}
+
+	o = New()
+	o.Set("a", 1)
+	if err := json.Unmarshal([]byte(" \nnull\t"), o); err != nil {
+		t.Fatal(err)
+	}
+	if len(o.Keys()) != 0 {
+		t.Fatalf("keys after padded null: %v", o.Keys())
+	}
+
+	// Options are preserved; only the map contents are cleared.
+	o = New()
+	o.SetEscapeHTML(true)
+	o.SetJSONLastValueWins(true)
+	o.Set("a", 1)
+	if err := o.UnmarshalJSON([]byte(" null ")); err != nil {
+		t.Fatal(err)
+	}
+	if len(o.Keys()) != 0 {
+		t.Fatalf("keys after spaced null: %v", o.Keys())
+	}
+	b, err := o.MarshalJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != `{}` {
+		t.Fatalf("marshal empty after null: %q", b)
+	}
+}
+
 func TestUnmarshalJSONDuplicateKeys(t *testing.T) {
 	s := `{
 		"a": [{}, []],
