@@ -343,9 +343,9 @@ func (e *DuplicateFieldError) Unwrap() error {
 // Vulnerabilities](https://bishopfox.com/blog/json-interoperability-vulnerabilities)"
 // and control-f "duplicate".
 //
-// Until Go releases the planned revision to the JSON package (See
-// https://github.com/go-json-experiment/json), or adds support for erroring on
-// duplicates to the current package, this function is needed.
+// encoding/json/v2, stable in Go 1.27, rejects duplicate keys. This helper
+// remains useful with encoding/json v1, which still uses last-value-wins, and
+// because it returns the top-level keys when the input has no duplicates.
 //
 // After JSON was widely adopted, Douglas Crockford (JSON's inventor), tried to
 // fix this by updating JSON to define "must error on duplicates" as the correct
