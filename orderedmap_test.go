@@ -613,3 +613,28 @@ func TestOrderedMap_empty_map(t *testing.T) {
 		t.Error("Got", marshalledStr)
 	}
 }
+
+// TestUnmarshalJSONNestedDuplicate tests that duplicate keys in nested objects,
+// including objects inside arrays, cause an error unless last-value-wins is on.
+func TestUnmarshalJSONNestedDuplicate(t *testing.T) {
+	cases := []string{
+		`{"a":{"x":1,"x":2}}`,
+		`{"a":[{"x":1},{"y":1,"y":2}]}`,
+		`{"a":[[{"x":{"z":1,"z":2}}]]}`,
+	}
+	for _, s := range cases {
+		o := New()
+		err := json.Unmarshal([]byte(s), &o)
+		if err == nil {
+			t.Errorf("no error on nested duplicate key: %s", s)
+		} else if !strings.HasPrefix(err.Error(), "orderedmap: JSON duplicate field") {
+			t.Errorf("unexpected error for %s: %v", s, err)
+		}
+
+		o = New()
+		o.SetJSONLastValueWins(true)
+		if err := json.Unmarshal([]byte(s), &o); err != nil {
+			t.Errorf("unexpected error with last value wins for %s: %v", s, err)
+		}
+	}
+}
