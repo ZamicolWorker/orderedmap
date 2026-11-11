@@ -203,7 +203,6 @@ func TestMarshalJSON(t *testing.T) {
 
 func TestMarshalJSONNoEscapeHTML(t *testing.T) {
 	o := New()
-	o.SetEscapeHTML(false)
 	// string special characters
 	o.Set("specialstring", "\\.<>[]{}_-")
 	// convert to json
@@ -233,6 +232,29 @@ func TestMarshalJSONNoEscapeHTMLRecursive(t *testing.T) {
 	s := strings.Replace(string(b), "\n", "", -1)
 	if s != src {
 		t.Error("JSON Marshal value is incorrect", s)
+	}
+}
+
+func TestMarshalJSONEscapeHTML(t *testing.T) {
+	o := New()
+	o.Set("chars", "<>&")
+	b, err := o.MarshalJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := strings.Replace(string(b), "\n", "", -1)
+	if s != `{"chars":"<>&"}` {
+		t.Errorf("default MarshalJSON HTML-escaped: %s", s)
+	}
+
+	o.SetEscapeHTML(true)
+	b, err = o.MarshalJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s = strings.Replace(string(b), "\n", "", -1)
+	if s != `{"chars":"\u003c\u003e\u0026"}` {
+		t.Errorf("SetEscapeHTML(true) did not escape: %s", s)
 	}
 }
 

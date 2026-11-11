@@ -3,6 +3,12 @@
 //
 // encoding/json has no way to preserve the order of object keys. See
 // https://github.com/golang/go/issues/27179.
+//
+// By default, MarshalJSON does not HTML-escape <, >, or &, unlike
+// encoding/json. Use SetEscapeHTML(true) to enable that escaping.
+// encoding/json.Marshal will still HTML-escape the result; call
+// MarshalJSON directly, or use a json.Encoder with SetEscapeHTML(false),
+// to keep the unescaped output.
 package orderedmap
 
 import (
@@ -41,14 +47,22 @@ type OrderedMap struct {
 	jsonLastValueWins bool // Permits duplicates on JSON unmarshal.  Otherwise errors on duplicates on unmarshal.
 }
 
+// New returns an empty OrderedMap. HTML escaping is off by default.
 func New() *OrderedMap {
 	o := OrderedMap{}
 	o.keys = []string{}
 	o.values = map[string]interface{}{}
-	o.escapeHTML = true
+	o.escapeHTML = false
 	return &o
 }
 
+// SetEscapeHTML sets whether MarshalJSON escapes <, >, and & as \u003c,
+// \u003e, and \u0026. HTML escaping is off by default, unlike encoding/json.
+// Call SetEscapeHTML(true) to match encoding/json's default.
+//
+// encoding/json.Marshal always HTML-escapes MarshalJSON's output. To get
+// unescaped output, call MarshalJSON directly or use json.NewEncoder and
+// Encoder.SetEscapeHTML(false).
 func (o *OrderedMap) SetEscapeHTML(on bool) {
 	o.escapeHTML = on
 }
