@@ -138,7 +138,7 @@ func (o *OrderedMap) Sort(lessFunc func(a *Pair, b *Pair) bool) {
 func (o *OrderedMap) UnmarshalJSON(b []byte) error {
 	var err error
 	if !o.jsonLastValueWins {
-		err = CheckDuplicate(json.NewDecoder(bytes.NewReader(b)))
+		_, err = CheckDuplicate(json.NewDecoder(bytes.NewReader(b)))
 		if err != nil {
 			return err
 		}
@@ -309,7 +309,8 @@ func (o OrderedMap) MarshalJSON() ([]byte, error) {
 // ErrJSONDuplicate allows applications to check for JSON duplicate error.
 type ErrJSONDuplicate error
 
-// CheckDuplicate checks for JSON duplicates on ingest (unmarshal).  Note that
+// CheckDuplicate checks for JSON duplicates on ingest (unmarshal). If there are
+// no duplicates, it returns the top-level unique keys in order. Note that
 // Go maps and structs and Javascript objects (ES6) already require unique
 // JSON names.
 //
@@ -339,50 +340,53 @@ type ErrJSONDuplicate error
 // Disallowing duplicates conforms to the small I-JSON RFC. The author of
 // I-JSON, Tim Bray, is also the author of current JSON specification (RFC
 // 8259).  See also https://github.com/json5/json5-spec/issues/38.
-func CheckDuplicate(d *json.Decoder) error {
+func CheckDuplicate(d *json.Decoder) (topLevelObjectKeys []string, e error) {
 	t, err := d.Token()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	delim, ok := t.(json.Delim) // Is it a delimiter?
 	if !ok {
-		return nil // scalar type, nothing to do
+		return nil, nil // scalar type, nothing to do
 	}
 
 	switch delim {
 	case '{':
-		keys := make(map[string]bool)
+		keysBool := make(map[string]bool)
+		var keys []string // preserves order
 		for d.More() {
 			t, err := d.Token() // Get field key.
 			if err != nil {
-				return err
+				return nil, err
 			}
 
 			key := t.(string)
-			if keys[key] { // Check for duplicates.
-				return ErrJSONDuplicate(fmt.Errorf("orderedmap: JSON duplicate field %q", key))
+			if keysBool[key] { // Check for duplicates.
+				return nil, ErrJSONDuplicate(fmt.Errorf("orderedmap: JSON duplicate field %q", key))
 			}
-			keys[key] = true
-			err = CheckDuplicate(d) // Recursive, Check value in case value is object.
-			if err != nil {
-				return err
+			keysBool[key] = true
+			keys = append(keys, key)
+			// Recursive, Check value in case value is object.
+			if _, err = CheckDuplicate(d); err != nil {
+				return nil, err
 			}
 		}
 		if _, err := d.Token(); err != nil { // consume trailing }
-			return err
+			return nil, err
 		}
+		return keys, nil
 
 	case '[':
 		for d.More() {
-			if err := CheckDuplicate(d); err != nil {
-				return err
+			if _, err := CheckDuplicate(d); err != nil {
+				return nil, err
 			}
 		}
 		// consume trailing ]
 		if _, err := d.Token(); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return nil, nil
 }

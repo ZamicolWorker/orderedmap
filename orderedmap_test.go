@@ -680,3 +680,54 @@ func TestUnmarshalJSONNestedDuplicate(t *testing.T) {
 		}
 	}
 }
+
+func TestCheckDuplicate(t *testing.T) {
+	// Happy path; no duplicate. Returns top-level keys in order, not nested keys.
+	data := `{"a": "x", "b":"y", "c": {"z": 1, "zz": 2}}`
+	keys, err := CheckDuplicate(json.NewDecoder(strings.NewReader(data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(keys, []string{"a", "b", "c"}) {
+		t.Fatalf("Top level keys returned incorrectly. Got: %v", keys)
+	}
+
+	// Scalar and array roots have no object keys.
+	keys, err = CheckDuplicate(json.NewDecoder(strings.NewReader(`"x"`)))
+	if err != nil || keys != nil {
+		t.Fatalf("scalar: keys=%v err=%v", keys, err)
+	}
+	keys, err = CheckDuplicate(json.NewDecoder(strings.NewReader(`[{"a":1}]`)))
+	if err != nil || keys != nil {
+		t.Fatalf("array: keys=%v err=%v", keys, err)
+	}
+
+	// Duplicate, should error.
+	data = `{"a": "aValue", "a":true,"c":["field_3 string 1","field3 string2"], "d": {"z": 1, "zz": 2}}`
+	_, err = CheckDuplicate(json.NewDecoder(strings.NewReader(data)))
+	if err == nil {
+		t.Fatal("Should have found duplicate.")
+	}
+
+	// Recursive check with duplicate in inner struct. Should error and return no keys.
+	data = `{"a": "aValue", "b":"bValue", "c": {"z": 1, "z": 2}}`
+	keys, err = CheckDuplicate(json.NewDecoder(strings.NewReader(data)))
+	if err == nil {
+		t.Fatal("Recursive check should have found duplicate.")
+	}
+	if keys != nil {
+		t.Fatalf("duplicate should return no keys, got %v", keys)
+	}
+}
+
+func ExampleCheckDuplicate() {
+	data := `{"a": "x", "b":"y", "c": {"z": 1, "zz": 2}}`
+	keys, err := CheckDuplicate(json.NewDecoder(strings.NewReader(data)))
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println(keys)
+
+	// Output:
+	// [a b c]
+}
