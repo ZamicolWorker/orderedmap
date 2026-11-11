@@ -8,6 +8,8 @@ Retains order of keys in maps
 
 Can be JSON serialized / deserialized
 
+Forked from [Ian Coleman's orderedmap](https://github.com/iancoleman/orderedmap).
+
 # Usage
 
 ```go
@@ -15,21 +17,20 @@ package main
 
 import (
     "encoding/json"
-    "github.com/iancoleman/orderedmap"
+    "github.com/zamicol/orderedmap"
 )
 
 func main() {
 
-    // use New() instead of o := map[string]interface{}{}
+    // use New() instead of o := map[string]any{}
     o := orderedmap.New()
-
-    // use SetEscapeHTML() to whether escape problematic HTML characters or not, defaults is true
-    o.SetEscapeHTML(false)
 
     // use Set instead of o["a"] = 1
     o.Set("a", 1)
 
-    // add some value with special characters
+    // add some value with special characters. MarshalJSON does not HTML-escape
+    // <, >, or & by default, unlike encoding/json. Use SetEscapeHTML(true) to
+    // turn it on. json.Marshal will still escape the result.
     o.Set("b", "\\.<>[]{}_-")
 
     // use Get instead of i, ok := o["a"]
@@ -66,6 +67,7 @@ func main() {
 # Caveats
 
 * OrderedMap only takes strings for the key, as per [the JSON spec](http://json.org/).
+* MarshalJSON does not HTML-escape `<`, `>`, or `&` by default, unlike encoding/json. Use `SetEscapeHTML(true)` to turn that on. `encoding/json.Marshal` will still escape the result; call `MarshalJSON` directly or use a `json.Encoder` with `SetEscapeHTML(false)`.
 
 # Tests
 

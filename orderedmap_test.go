@@ -36,15 +36,15 @@ func TestOrderedMap(t *testing.T) {
 		t.Error("Set strings second index")
 	}
 	// mixed slice
-	o.Set("mixed", []interface{}{
+	o.Set("mixed", []any{
 		1,
 		"1",
 	})
 	v, _ = o.Get("mixed")
-	if v.([]interface{})[0].(int) != 1 {
+	if v.([]any)[0].(int) != 1 {
 		t.Error("Set mixed int")
 	}
-	if v.([]interface{})[1].(string) != "1" {
+	if v.([]any)[1].(string) != "1" {
 		t.Error("Set mixed string")
 	}
 	// overriding existing key
@@ -68,14 +68,16 @@ func TestOrderedMap(t *testing.T) {
 	}
 	// Values method
 	values := o.Values()
-	expectedValues := map[string]interface{}{
-		"number":  4,
-		"string":  "x",
-		"strings": []string{"t", "u"},
-		"mixed":   []interface{}{1, "1"},
+	expectedValues := []any{
+		4, // 3 is overwritten
+		"x",
+		[]string{"t", "u"},
+		[]any{1, "1"},
 	}
-	if !reflect.DeepEqual(values, expectedValues) {
-		t.Error("Values method returned unexpected map")
+	for i, val := range values {
+		if !reflect.DeepEqual(expectedValues[i], val) {
+			t.Error("Values method", expectedValues[i], "!=", val)
+		}
 	}
 	// delete
 	o.Delete("strings")
@@ -86,6 +88,24 @@ func TestOrderedMap(t *testing.T) {
 	_, ok := o.Get("strings")
 	if ok {
 		t.Error("Delete did not remove 'strings' key")
+	}
+}
+
+func TestValuesOrder(t *testing.T) {
+	o := New()
+	o.Set("c", 3)
+	o.Set("a", 1)
+	o.Set("b", 2)
+	got := o.Values()
+	want := []any{3, 1, 2}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Values() = %v, want %v (insertion order)", got, want)
+	}
+	o.SortKeys(sort.Strings)
+	got = o.Values()
+	want = []any{1, 2, 3}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Values() after SortKeys = %v, want %v", got, want)
 	}
 }
 
@@ -130,7 +150,7 @@ func TestMarshalJSON(t *testing.T) {
 	o.Set("a", 2)
 	o.Set("b", 3)
 	// slice
-	o.Set("slice", []interface{}{
+	o.Set("slice", []any{
 		"1",
 		1,
 	})
@@ -183,7 +203,6 @@ func TestMarshalJSON(t *testing.T) {
 
 func TestMarshalJSONNoEscapeHTML(t *testing.T) {
 	o := New()
-	o.SetEscapeHTML(false)
 	// string special characters
 	o.Set("specialstring", "\\.<>[]{}_-")
 	// convert to json
@@ -213,6 +232,29 @@ func TestMarshalJSONNoEscapeHTMLRecursive(t *testing.T) {
 	s := strings.Replace(string(b), "\n", "", -1)
 	if s != src {
 		t.Error("JSON Marshal value is incorrect", s)
+	}
+}
+
+func TestMarshalJSONEscapeHTML(t *testing.T) {
+	o := New()
+	o.Set("chars", "<>&")
+	b, err := o.MarshalJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := strings.Replace(string(b), "\n", "", -1)
+	if s != `{"chars":"<>&"}` {
+		t.Errorf("default MarshalJSON HTML-escaped: %s", s)
+	}
+
+	o.SetEscapeHTML(true)
+	b, err = o.MarshalJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s = strings.Replace(string(b), "\n", "", -1)
+	if s != `{"chars":"\u003c\u003e\u0026"}` {
+		t.Errorf("SetEscapeHTML(true) did not escape: %s", s)
 	}
 }
 
@@ -312,7 +354,7 @@ func TestUnmarshalJSON(t *testing.T) {
 	if !ok {
 		t.Error("Missing key for multitype array")
 	}
-	vslice := vislice.([]interface{})
+	vslice := vislice.([]any)
 	vmap := vslice[2].(OrderedMap)
 	k = vmap.Keys()
 	for i := range k {
@@ -322,9 +364,9 @@ func TestUnmarshalJSON(t *testing.T) {
 	}
 	// nested map 3 deep
 	vislice, _ = o.Get("multitype_array")
-	vslice = vislice.([]interface{})
+	vslice = vislice.([]any)
 	expectedKeys = []string{"inner"}
-	vinnerslice := vslice[3].([]interface{})
+	vinnerslice := vslice[3].([]any)
 	vinnermap := vinnerslice[0].(OrderedMap)
 	k = vinnermap.Keys()
 	for i := range k {
@@ -374,7 +416,7 @@ func TestUnmarshalJSONDuplicateKeys(t *testing.T) {
 	vimap, _ := o.Get("a")
 	_ = vimap.(OrderedMap)
 	vislice, _ := o.Get("b")
-	_ = vislice.([]interface{})
+	_ = vislice.([]any)
 	vival, _ := o.Get("c")
 	_ = vival.(float64)
 
@@ -392,7 +434,7 @@ func TestUnmarshalJSONDuplicateKeys(t *testing.T) {
 	}
 
 	vislice, _ = o.Get("e")
-	m = vislice.([]interface{})[0].(OrderedMap)
+	m = vislice.([]any)[0].(OrderedMap)
 	expectedKeys = []string{"z"}
 	keys = m.Keys()
 	if len(keys) != len(expectedKeys) {
@@ -497,7 +539,7 @@ func TestUnmarshalJSONArrayOfMaps(t *testing.T) {
 	if !ok {
 		t.Error("Missing key for nested map 1 deep")
 	}
-	vs := vi.([]interface{})
+	vs := vi.([]any)
 	for _, vInterface := range vs {
 		v := vInterface.(OrderedMap)
 		k = v.Keys()
@@ -612,4 +654,80 @@ func TestOrderedMap_empty_map(t *testing.T) {
 		t.Error("Expect", srcStr)
 		t.Error("Got", marshalledStr)
 	}
+}
+
+// TestUnmarshalJSONNestedDuplicate tests that duplicate keys in nested objects,
+// including objects inside arrays, cause an error unless last-value-wins is on.
+func TestUnmarshalJSONNestedDuplicate(t *testing.T) {
+	cases := []string{
+		`{"a":{"x":1,"x":2}}`,
+		`{"a":[{"x":1},{"y":1,"y":2}]}`,
+		`{"a":[[{"x":{"z":1,"z":2}}]]}`,
+	}
+	for _, s := range cases {
+		o := New()
+		err := json.Unmarshal([]byte(s), &o)
+		if err == nil {
+			t.Errorf("no error on nested duplicate key: %s", s)
+		} else if !strings.HasPrefix(err.Error(), "orderedmap: JSON duplicate field") {
+			t.Errorf("unexpected error for %s: %v", s, err)
+		}
+
+		o = New()
+		o.SetJSONLastValueWins(true)
+		if err := json.Unmarshal([]byte(s), &o); err != nil {
+			t.Errorf("unexpected error with last value wins for %s: %v", s, err)
+		}
+	}
+}
+
+func TestCheckDuplicate(t *testing.T) {
+	// Happy path; no duplicate. Returns top-level keys in order, not nested keys.
+	data := `{"a": "x", "b":"y", "c": {"z": 1, "zz": 2}}`
+	keys, err := CheckDuplicate(json.NewDecoder(strings.NewReader(data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(keys, []string{"a", "b", "c"}) {
+		t.Fatalf("Top level keys returned incorrectly. Got: %v", keys)
+	}
+
+	// Scalar and array roots have no object keys.
+	keys, err = CheckDuplicate(json.NewDecoder(strings.NewReader(`"x"`)))
+	if err != nil || keys != nil {
+		t.Fatalf("scalar: keys=%v err=%v", keys, err)
+	}
+	keys, err = CheckDuplicate(json.NewDecoder(strings.NewReader(`[{"a":1}]`)))
+	if err != nil || keys != nil {
+		t.Fatalf("array: keys=%v err=%v", keys, err)
+	}
+
+	// Duplicate, should error.
+	data = `{"a": "aValue", "a":true,"c":["field_3 string 1","field3 string2"], "d": {"z": 1, "zz": 2}}`
+	_, err = CheckDuplicate(json.NewDecoder(strings.NewReader(data)))
+	if err == nil {
+		t.Fatal("Should have found duplicate.")
+	}
+
+	// Recursive check with duplicate in inner struct. Should error and return no keys.
+	data = `{"a": "aValue", "b":"bValue", "c": {"z": 1, "z": 2}}`
+	keys, err = CheckDuplicate(json.NewDecoder(strings.NewReader(data)))
+	if err == nil {
+		t.Fatal("Recursive check should have found duplicate.")
+	}
+	if keys != nil {
+		t.Fatalf("duplicate should return no keys, got %v", keys)
+	}
+}
+
+func ExampleCheckDuplicate() {
+	data := `{"a": "x", "b":"y", "c": {"z": 1, "zz": 2}}`
+	keys, err := CheckDuplicate(json.NewDecoder(strings.NewReader(data)))
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println(keys)
+
+	// Output:
+	// [a b c]
 }

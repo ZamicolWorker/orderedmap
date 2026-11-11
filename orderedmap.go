@@ -1,3 +1,14 @@
+// Package orderedmap provides OrderedMap, a map whose keys keep the order in
+// which they were added and which round-trips that order through JSON.
+//
+// encoding/json has no way to preserve the order of object keys. See
+// https://github.com/golang/go/issues/27179.
+//
+// By default, MarshalJSON does not HTML-escape <, >, or &, unlike
+// encoding/json. Use SetEscapeHTML(true) to enable that escaping.
+// encoding/json.Marshal will still HTML-escape the result; call
+// MarshalJSON directly, or use a json.Encoder with SetEscapeHTML(false),
+// to keep the unescaped output.
 package orderedmap
 
 import (
@@ -9,14 +20,14 @@ import (
 
 type Pair struct {
 	key   string
-	value interface{}
+	value any
 }
 
 func (kv *Pair) Key() string {
 	return kv.key
 }
 
-func (kv *Pair) Value() interface{} {
+func (kv *Pair) Value() any {
 	return kv.value
 }
 
@@ -31,19 +42,27 @@ func (a ByPair) Less(i, j int) bool { return a.LessFunc(a.Pairs[i], a.Pairs[j]) 
 
 type OrderedMap struct {
 	keys              []string
-	values            map[string]interface{}
+	values            map[string]any
 	escapeHTML        bool
 	jsonLastValueWins bool // Permits duplicates on JSON unmarshal.  Otherwise errors on duplicates on unmarshal.
 }
 
+// New returns an empty OrderedMap. HTML escaping is off by default.
 func New() *OrderedMap {
 	o := OrderedMap{}
 	o.keys = []string{}
-	o.values = map[string]interface{}{}
-	o.escapeHTML = true
+	o.values = map[string]any{}
+	o.escapeHTML = false
 	return &o
 }
 
+// SetEscapeHTML sets whether MarshalJSON escapes <, >, and & as \u003c,
+// \u003e, and \u0026. HTML escaping is off by default, unlike encoding/json.
+// Call SetEscapeHTML(true) to match encoding/json's default.
+//
+// encoding/json.Marshal always HTML-escapes MarshalJSON's output. To get
+// unescaped output, call MarshalJSON directly or use json.NewEncoder and
+// Encoder.SetEscapeHTML(false).
 func (o *OrderedMap) SetEscapeHTML(on bool) {
 	o.escapeHTML = on
 }
@@ -52,12 +71,12 @@ func (o *OrderedMap) SetJSONLastValueWins(on bool) {
 	o.jsonLastValueWins = on
 }
 
-func (o *OrderedMap) Get(key string) (interface{}, bool) {
+func (o *OrderedMap) Get(key string) (any, bool) {
 	val, exists := o.values[key]
 	return val, exists
 }
 
-func (o *OrderedMap) Set(key string, value interface{}) {
+func (o *OrderedMap) Set(key string, value any) {
 	_, exists := o.values[key]
 	if !exists {
 		o.keys = append(o.keys, key)
@@ -86,16 +105,21 @@ func (o *OrderedMap) Keys() []string {
 	return o.keys
 }
 
-func (o *OrderedMap) Values() map[string]interface{} {
-	return o.values
+// Values returns the values in key order.
+func (o *OrderedMap) Values() []any {
+	v := make([]any, len(o.keys))
+	for i, k := range o.keys {
+		v[i] = o.values[k]
+	}
+	return v
 }
 
-// SortKeys Sort the map keys using your sort func
+// SortKeys sorts the map keys using the provided sort func.
 func (o *OrderedMap) SortKeys(sortFunc func(keys []string)) {
 	sortFunc(o.keys)
 }
 
-// Sort Sort the map using your sort func
+// Sort sorts the map using the provided less func.
 func (o *OrderedMap) Sort(lessFunc func(a *Pair, b *Pair) bool) {
 	pairs := make([]*Pair, len(o.keys))
 	for i, key := range o.keys {
@@ -109,16 +133,18 @@ func (o *OrderedMap) Sort(lessFunc func(a *Pair, b *Pair) bool) {
 	}
 }
 
+// UnmarshalJSON errors on duplicate JSON keys unless SetJSONLastValueWins(true)
+// was called. "Last value wins" is bad practice. See CheckDuplicate.
 func (o *OrderedMap) UnmarshalJSON(b []byte) error {
 	var err error
 	if !o.jsonLastValueWins {
-		err = CheckDuplicate(json.NewDecoder(bytes.NewReader(b)))
+		_, err = CheckDuplicate(json.NewDecoder(bytes.NewReader(b)))
 		if err != nil {
 			return err
 		}
 	}
 	if o.values == nil {
-		o.values = map[string]interface{}{}
+		o.values = map[string]any{}
 	}
 	err = json.Unmarshal(b, &o.values)
 	if err != nil {
@@ -164,7 +190,7 @@ func decodeOrderedMap(dec *json.Decoder, o *OrderedMap) error {
 		if delim, ok := token.(json.Delim); ok {
 			switch delim {
 			case '{':
-				if values, ok := o.values[key].(map[string]interface{}); ok {
+				if values, ok := o.values[key].(map[string]any); ok {
 					newMap := OrderedMap{
 						keys:       make([]string, 0, len(values)),
 						values:     values,
@@ -188,11 +214,11 @@ func decodeOrderedMap(dec *json.Decoder, o *OrderedMap) error {
 					return err
 				}
 			case '[':
-				if values, ok := o.values[key].([]interface{}); ok {
+				if values, ok := o.values[key].([]any); ok {
 					if err = decodeSlice(dec, values, o.escapeHTML); err != nil {
 						return err
 					}
-				} else if err = decodeSlice(dec, []interface{}{}, o.escapeHTML); err != nil {
+				} else if err = decodeSlice(dec, []any{}, o.escapeHTML); err != nil {
 					return err
 				}
 			}
@@ -200,7 +226,7 @@ func decodeOrderedMap(dec *json.Decoder, o *OrderedMap) error {
 	}
 }
 
-func decodeSlice(dec *json.Decoder, s []interface{}, escapeHTML bool) error {
+func decodeSlice(dec *json.Decoder, s []any, escapeHTML bool) error {
 	for index := 0; ; index++ {
 		token, err := dec.Token()
 		if err != nil {
@@ -210,7 +236,7 @@ func decodeSlice(dec *json.Decoder, s []interface{}, escapeHTML bool) error {
 			switch delim {
 			case '{':
 				if index < len(s) {
-					if values, ok := s[index].(map[string]interface{}); ok {
+					if values, ok := s[index].(map[string]any); ok {
 						newMap := OrderedMap{
 							keys:       make([]string, 0, len(values)),
 							values:     values,
@@ -238,14 +264,14 @@ func decodeSlice(dec *json.Decoder, s []interface{}, escapeHTML bool) error {
 				}
 			case '[':
 				if index < len(s) {
-					if values, ok := s[index].([]interface{}); ok {
+					if values, ok := s[index].([]any); ok {
 						if err = decodeSlice(dec, values, escapeHTML); err != nil {
 							return err
 						}
-					} else if err = decodeSlice(dec, []interface{}{}, escapeHTML); err != nil {
+					} else if err = decodeSlice(dec, []any{}, escapeHTML); err != nil {
 						return err
 					}
-				} else if err = decodeSlice(dec, []interface{}{}, escapeHTML); err != nil {
+				} else if err = decodeSlice(dec, []any{}, escapeHTML); err != nil {
 					return err
 				}
 			case ']':
@@ -255,6 +281,8 @@ func decodeSlice(dec *json.Decoder, s []interface{}, escapeHTML bool) error {
 	}
 }
 
+// MarshalJSON writes keys in order. Output has no duplicate keys since
+// OrderedMap keys are unique.
 func (o OrderedMap) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteByte('{')
@@ -281,7 +309,8 @@ func (o OrderedMap) MarshalJSON() ([]byte, error) {
 // ErrJSONDuplicate allows applications to check for JSON duplicate error.
 type ErrJSONDuplicate error
 
-// CheckDuplicate checks for JSON duplicates on ingest (unmarshal).  Note that
+// CheckDuplicate checks for JSON duplicates on ingest (unmarshal). If there are
+// no duplicates, it returns the top-level unique keys in order. Note that
 // Go maps and structs and Javascript objects (ES6) already require unique
 // JSON names.
 //
@@ -297,12 +326,12 @@ type ErrJSONDuplicate error
 //
 // After JSON was widely adopted, Douglas Crockford (JSON's inventor), tried to
 // fix this by updating JSON to define "must error on duplicates" as the correct
-// behavior,  but it was decided it was too late
+// behavior, but it was decided it was too late
 // (https://esdiscuss.org/topic/json-duplicate-keys).
 //
 // Although Douglas Crockford couldn't change the JSON spec to force
 // implementations to error on duplicate, his Java JSON implementation errors on
-// duplicates. Others implementations behaviors are `last-value-wins`, support
+// duplicates. Other implementations' behaviors are `last-value-wins`, support
 // duplicate keys, or other non-standard behavior. The [JSON
 // RFC](https://datatracker.ietf.org/doc/html/rfc8259#section-4) states that
 // implementations should not allow duplicate keys.  It then notes the varying behavior
@@ -311,50 +340,53 @@ type ErrJSONDuplicate error
 // Disallowing duplicates conforms to the small I-JSON RFC. The author of
 // I-JSON, Tim Bray, is also the author of current JSON specification (RFC
 // 8259).  See also https://github.com/json5/json5-spec/issues/38.
-func CheckDuplicate(d *json.Decoder) error {
+func CheckDuplicate(d *json.Decoder) (topLevelObjectKeys []string, e error) {
 	t, err := d.Token()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	delim, ok := t.(json.Delim) // Is it a delimiter?
 	if !ok {
-		return nil // scaler type, nothing to do
+		return nil, nil // scalar type, nothing to do
 	}
 
 	switch delim {
 	case '{':
-		keys := make(map[string]bool)
+		keysBool := make(map[string]bool)
+		var keys []string // preserves order
 		for d.More() {
 			t, err := d.Token() // Get field key.
 			if err != nil {
-				return err
+				return nil, err
 			}
 
 			key := t.(string)
-			if keys[key] { // Check for duplicates.
-				return ErrJSONDuplicate(fmt.Errorf("Coze: JSON duplicate field %q", key))
+			if keysBool[key] { // Check for duplicates.
+				return nil, ErrJSONDuplicate(fmt.Errorf("orderedmap: JSON duplicate field %q", key))
 			}
-			keys[key] = true
-			err = CheckDuplicate(d) // Recursive, Check value in case value is object.
-			if err != nil {
-				return err
+			keysBool[key] = true
+			keys = append(keys, key)
+			// Recursive, Check value in case value is object.
+			if _, err = CheckDuplicate(d); err != nil {
+				return nil, err
 			}
 		}
 		if _, err := d.Token(); err != nil { // consume trailing }
-			return err
+			return nil, err
 		}
+		return keys, nil
 
 	case '[':
 		for d.More() {
-			if err := CheckDuplicate(d); err != nil {
-				return err
+			if _, err := CheckDuplicate(d); err != nil {
+				return nil, err
 			}
 		}
 		// consume trailing ]
 		if _, err := d.Token(); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return nil, nil
 }
