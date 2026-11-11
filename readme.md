@@ -22,7 +22,7 @@ import (
 
 func main() {
 
-    // use New() instead of o := map[string]interface{}{}
+    // use New() instead of o := map[string]any{}
     o := orderedmap.New()
 
     // use Set instead of o["a"] = 1

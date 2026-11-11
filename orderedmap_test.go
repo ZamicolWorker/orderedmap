@@ -36,15 +36,15 @@ func TestOrderedMap(t *testing.T) {
 		t.Error("Set strings second index")
 	}
 	// mixed slice
-	o.Set("mixed", []interface{}{
+	o.Set("mixed", []any{
 		1,
 		"1",
 	})
 	v, _ = o.Get("mixed")
-	if v.([]interface{})[0].(int) != 1 {
+	if v.([]any)[0].(int) != 1 {
 		t.Error("Set mixed int")
 	}
-	if v.([]interface{})[1].(string) != "1" {
+	if v.([]any)[1].(string) != "1" {
 		t.Error("Set mixed string")
 	}
 	// overriding existing key
@@ -68,11 +68,11 @@ func TestOrderedMap(t *testing.T) {
 	}
 	// Values method
 	values := o.Values()
-	expectedValues := []interface{}{
+	expectedValues := []any{
 		4, // 3 is overwritten
 		"x",
 		[]string{"t", "u"},
-		[]interface{}{1, "1"},
+		[]any{1, "1"},
 	}
 	for i, val := range values {
 		if !reflect.DeepEqual(expectedValues[i], val) {
@@ -97,13 +97,13 @@ func TestValuesOrder(t *testing.T) {
 	o.Set("a", 1)
 	o.Set("b", 2)
 	got := o.Values()
-	want := []interface{}{3, 1, 2}
+	want := []any{3, 1, 2}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Values() = %v, want %v (insertion order)", got, want)
 	}
 	o.SortKeys(sort.Strings)
 	got = o.Values()
-	want = []interface{}{1, 2, 3}
+	want = []any{1, 2, 3}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Values() after SortKeys = %v, want %v", got, want)
 	}
@@ -150,7 +150,7 @@ func TestMarshalJSON(t *testing.T) {
 	o.Set("a", 2)
 	o.Set("b", 3)
 	// slice
-	o.Set("slice", []interface{}{
+	o.Set("slice", []any{
 		"1",
 		1,
 	})
@@ -354,7 +354,7 @@ func TestUnmarshalJSON(t *testing.T) {
 	if !ok {
 		t.Error("Missing key for multitype array")
 	}
-	vslice := vislice.([]interface{})
+	vslice := vislice.([]any)
 	vmap := vslice[2].(OrderedMap)
 	k = vmap.Keys()
 	for i := range k {
@@ -364,9 +364,9 @@ func TestUnmarshalJSON(t *testing.T) {
 	}
 	// nested map 3 deep
 	vislice, _ = o.Get("multitype_array")
-	vslice = vislice.([]interface{})
+	vslice = vislice.([]any)
 	expectedKeys = []string{"inner"}
-	vinnerslice := vslice[3].([]interface{})
+	vinnerslice := vslice[3].([]any)
 	vinnermap := vinnerslice[0].(OrderedMap)
 	k = vinnermap.Keys()
 	for i := range k {
@@ -416,7 +416,7 @@ func TestUnmarshalJSONDuplicateKeys(t *testing.T) {
 	vimap, _ := o.Get("a")
 	_ = vimap.(OrderedMap)
 	vislice, _ := o.Get("b")
-	_ = vislice.([]interface{})
+	_ = vislice.([]any)
 	vival, _ := o.Get("c")
 	_ = vival.(float64)
 
@@ -434,7 +434,7 @@ func TestUnmarshalJSONDuplicateKeys(t *testing.T) {
 	}
 
 	vislice, _ = o.Get("e")
-	m = vislice.([]interface{})[0].(OrderedMap)
+	m = vislice.([]any)[0].(OrderedMap)
 	expectedKeys = []string{"z"}
 	keys = m.Keys()
 	if len(keys) != len(expectedKeys) {
@@ -539,7 +539,7 @@ func TestUnmarshalJSONArrayOfMaps(t *testing.T) {
 	if !ok {
 		t.Error("Missing key for nested map 1 deep")
 	}
-	vs := vi.([]interface{})
+	vs := vi.([]any)
 	for _, vInterface := range vs {
 		v := vInterface.(OrderedMap)
 		k = v.Keys()
