@@ -14,6 +14,7 @@ package orderedmap
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 )
@@ -306,13 +307,35 @@ func (o OrderedMap) MarshalJSON() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// ErrJSONDuplicate allows applications to check for JSON duplicate error.
-type ErrJSONDuplicate error
+// ErrJSONDuplicate is returned when CheckDuplicate or UnmarshalJSON encounters
+// a duplicate JSON object key. Compare with errors.Is. To get the field name,
+// use errors.As with *DuplicateFieldError.
+var ErrJSONDuplicate = errors.New("orderedmap: JSON duplicate field")
+
+// DuplicateFieldError names the duplicate JSON key. It unwraps to
+// ErrJSONDuplicate.
+//
+//	var e *DuplicateFieldError
+//	if errors.As(err, &e) {
+//		_ = e.Field
+//	}
+type DuplicateFieldError struct {
+	Field string
+}
+
+func (e *DuplicateFieldError) Error() string {
+	return fmt.Sprintf("orderedmap: JSON duplicate field %q", e.Field)
+}
+
+func (e *DuplicateFieldError) Unwrap() error {
+	return ErrJSONDuplicate
+}
 
 // CheckDuplicate checks for JSON duplicates on ingest (unmarshal). If there are
 // no duplicates, it returns the top-level unique keys in order. Note that
 // Go maps and structs and Javascript objects (ES6) already require unique
-// JSON names.
+// JSON names. Duplicate keys return a *DuplicateFieldError, which unwraps to
+// ErrJSONDuplicate.
 //
 // Duplicate JSON fields are a security issue that wasn't addressed by the
 // original spec that results in surprising behavior and is a source of bugs.
@@ -363,7 +386,7 @@ func CheckDuplicate(d *json.Decoder) (topLevelObjectKeys []string, e error) {
 
 			key := t.(string)
 			if keysBool[key] { // Check for duplicates.
-				return nil, ErrJSONDuplicate(fmt.Errorf("orderedmap: JSON duplicate field %q", key))
+				return nil, &DuplicateFieldError{Field: key}
 			}
 			keysBool[key] = true
 			keys = append(keys, key)

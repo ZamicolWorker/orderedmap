@@ -2,6 +2,7 @@ package orderedmap
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"sort"
@@ -461,6 +462,8 @@ func TestOrderedMapUnmarshalJSONDuplicate(t *testing.T) {
 	err := json.Unmarshal([]byte(s), &o)
 	if err == nil {
 		t.Errorf("orderedMap unmarshal did not error on duplicate key")
+	} else if !errors.Is(err, ErrJSONDuplicate) {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
 
@@ -669,7 +672,7 @@ func TestUnmarshalJSONNestedDuplicate(t *testing.T) {
 		err := json.Unmarshal([]byte(s), &o)
 		if err == nil {
 			t.Errorf("no error on nested duplicate key: %s", s)
-		} else if !strings.HasPrefix(err.Error(), "orderedmap: JSON duplicate field") {
+		} else if !errors.Is(err, ErrJSONDuplicate) {
 			t.Errorf("unexpected error for %s: %v", s, err)
 		}
 
@@ -730,4 +733,32 @@ func ExampleCheckDuplicate() {
 
 	// Output:
 	// [a b c]
+}
+
+func TestErrJSONDuplicate(t *testing.T) {
+	plain := fmt.Errorf("orderedmap: JSON duplicate field %q", "a")
+	if errors.Is(plain, ErrJSONDuplicate) {
+		t.Fatal("plain fmt.Errorf should not match ErrJSONDuplicate")
+	}
+	var de *DuplicateFieldError
+	if errors.As(plain, &de) {
+		t.Fatal("plain fmt.Errorf should not match DuplicateFieldError")
+	}
+
+	_, err := CheckDuplicate(json.NewDecoder(strings.NewReader(`{"a":1,"a":2}`)))
+	if err == nil {
+		t.Fatal("expected duplicate error")
+	}
+	if !errors.Is(err, ErrJSONDuplicate) {
+		t.Fatalf("errors.Is failed: %v", err)
+	}
+	if !errors.As(err, &de) {
+		t.Fatalf("errors.As failed: %v", err)
+	}
+	if de.Field != "a" {
+		t.Fatalf("Field = %q, want a", de.Field)
+	}
+	if err.Error() != `orderedmap: JSON duplicate field "a"` {
+		t.Fatalf("Error() = %q", err.Error())
+	}
 }
