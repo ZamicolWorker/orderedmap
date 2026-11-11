@@ -211,7 +211,7 @@ func TestMarshalJSONNoEscapeHTML(t *testing.T) {
 	if err != nil {
 		t.Error("Marshalling json", err)
 	}
-	s := strings.Replace(string(b), "\n", "", -1)
+	s := string(b)
 	// check json is correctly ordered
 	if s != `{"specialstring":"\\.<>[]{}_-"}` {
 		t.Error("JSON Marshal value is incorrect", s)
@@ -230,7 +230,7 @@ func TestMarshalJSONNoEscapeHTMLRecursive(t *testing.T) {
 	if err != nil {
 		t.Error("Marshalling json", err)
 	}
-	s := strings.Replace(string(b), "\n", "", -1)
+	s := string(b)
 	if s != src {
 		t.Error("JSON Marshal value is incorrect", s)
 	}
@@ -243,7 +243,7 @@ func TestMarshalJSONEscapeHTML(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := strings.Replace(string(b), "\n", "", -1)
+	s := string(b)
 	if s != `{"chars":"<>&"}` {
 		t.Errorf("default MarshalJSON HTML-escaped: %s", s)
 	}
@@ -253,9 +253,25 @@ func TestMarshalJSONEscapeHTML(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s = strings.Replace(string(b), "\n", "", -1)
+	s = string(b)
 	if s != `{"chars":"\u003c\u003e\u0026"}` {
 		t.Errorf("SetEscapeHTML(true) did not escape: %s", s)
+	}
+}
+
+func TestMarshalJSONNoNewlines(t *testing.T) {
+	o := New()
+	o.Set("a", 1)
+	o.Set("b", "x\ny")
+	b, err := o.MarshalJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "\n") {
+		t.Errorf("MarshalJSON left newlines: %q", b)
+	}
+	if string(b) != `{"a":1,"b":"x\ny"}` {
+		t.Errorf("MarshalJSON = %s", b)
 	}
 }
 

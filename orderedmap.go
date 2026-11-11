@@ -295,8 +295,9 @@ func decodeSlice(dec *json.Decoder, s []any, escapeHTML bool) error {
 	}
 }
 
-// MarshalJSON writes keys in order. Output has no duplicate keys since
-// OrderedMap keys are unique.
+// MarshalJSON writes keys in order as compact JSON, with no trailing newlines
+// from the encoder. Output has no duplicate keys since OrderedMap keys are
+// unique.
 func (o OrderedMap) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteByte('{')
@@ -310,11 +311,13 @@ func (o OrderedMap) MarshalJSON() ([]byte, error) {
 		if err := encoder.Encode(k); err != nil {
 			return nil, err
 		}
+		buf.Truncate(buf.Len() - 1) // strip Encode's trailing newline
 		buf.WriteByte(':')
 		// add value
 		if err := encoder.Encode(o.values[k]); err != nil {
 			return nil, err
 		}
+		buf.Truncate(buf.Len() - 1) // strip Encode's trailing newline
 	}
 	buf.WriteByte('}')
 	return buf.Bytes(), nil
