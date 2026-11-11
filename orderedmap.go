@@ -333,7 +333,7 @@ func CheckDuplicate(d *json.Decoder) error {
 
 			key := t.(string)
 			if keys[key] { // Check for duplicates.
-				return ErrJSONDuplicate(fmt.Errorf("Coze: JSON duplicate field %q", key))
+				return ErrJSONDuplicate(fmt.Errorf("orderedmap: JSON duplicate field %q", key))
 			}
 			keys[key] = true
 			err = CheckDuplicate(d) // Recursive, Check value in case value is object.
