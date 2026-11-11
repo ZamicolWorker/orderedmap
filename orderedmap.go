@@ -1,3 +1,8 @@
+// Package orderedmap provides OrderedMap, a map whose keys keep the order in
+// which they were added and which round-trips that order through JSON.
+//
+// encoding/json has no way to preserve the order of object keys. See
+// https://github.com/golang/go/issues/27179.
 package orderedmap
 
 import (
@@ -90,12 +95,12 @@ func (o *OrderedMap) Values() map[string]interface{} {
 	return o.values
 }
 
-// SortKeys Sort the map keys using your sort func
+// SortKeys sorts the map keys using the provided sort func.
 func (o *OrderedMap) SortKeys(sortFunc func(keys []string)) {
 	sortFunc(o.keys)
 }
 
-// Sort Sort the map using your sort func
+// Sort sorts the map using the provided less func.
 func (o *OrderedMap) Sort(lessFunc func(a *Pair, b *Pair) bool) {
 	pairs := make([]*Pair, len(o.keys))
 	for i, key := range o.keys {
@@ -109,6 +114,8 @@ func (o *OrderedMap) Sort(lessFunc func(a *Pair, b *Pair) bool) {
 	}
 }
 
+// UnmarshalJSON errors on duplicate JSON keys unless SetJSONLastValueWins(true)
+// was called. "Last value wins" is bad practice. See CheckDuplicate.
 func (o *OrderedMap) UnmarshalJSON(b []byte) error {
 	var err error
 	if !o.jsonLastValueWins {
@@ -255,6 +262,8 @@ func decodeSlice(dec *json.Decoder, s []interface{}, escapeHTML bool) error {
 	}
 }
 
+// MarshalJSON writes keys in order. Output has no duplicate keys since
+// OrderedMap keys are unique.
 func (o OrderedMap) MarshalJSON() ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteByte('{')
@@ -297,12 +306,12 @@ type ErrJSONDuplicate error
 //
 // After JSON was widely adopted, Douglas Crockford (JSON's inventor), tried to
 // fix this by updating JSON to define "must error on duplicates" as the correct
-// behavior,  but it was decided it was too late
+// behavior, but it was decided it was too late
 // (https://esdiscuss.org/topic/json-duplicate-keys).
 //
 // Although Douglas Crockford couldn't change the JSON spec to force
 // implementations to error on duplicate, his Java JSON implementation errors on
-// duplicates. Others implementations behaviors are `last-value-wins`, support
+// duplicates. Other implementations' behaviors are `last-value-wins`, support
 // duplicate keys, or other non-standard behavior. The [JSON
 // RFC](https://datatracker.ietf.org/doc/html/rfc8259#section-4) states that
 // implementations should not allow duplicate keys.  It then notes the varying behavior
@@ -319,7 +328,7 @@ func CheckDuplicate(d *json.Decoder) error {
 
 	delim, ok := t.(json.Delim) // Is it a delimiter?
 	if !ok {
-		return nil // scaler type, nothing to do
+		return nil // scalar type, nothing to do
 	}
 
 	switch delim {
