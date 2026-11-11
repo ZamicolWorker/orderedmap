@@ -68,14 +68,16 @@ func TestOrderedMap(t *testing.T) {
 	}
 	// Values method
 	values := o.Values()
-	expectedValues := map[string]interface{}{
-		"number":  4,
-		"string":  "x",
-		"strings": []string{"t", "u"},
-		"mixed":   []interface{}{1, "1"},
+	expectedValues := []interface{}{
+		4, // 3 is overwritten
+		"x",
+		[]string{"t", "u"},
+		[]interface{}{1, "1"},
 	}
-	if !reflect.DeepEqual(values, expectedValues) {
-		t.Error("Values method returned unexpected map")
+	for i, val := range values {
+		if !reflect.DeepEqual(expectedValues[i], val) {
+			t.Error("Values method", expectedValues[i], "!=", val)
+		}
 	}
 	// delete
 	o.Delete("strings")
@@ -86,6 +88,24 @@ func TestOrderedMap(t *testing.T) {
 	_, ok := o.Get("strings")
 	if ok {
 		t.Error("Delete did not remove 'strings' key")
+	}
+}
+
+func TestValuesOrder(t *testing.T) {
+	o := New()
+	o.Set("c", 3)
+	o.Set("a", 1)
+	o.Set("b", 2)
+	got := o.Values()
+	want := []interface{}{3, 1, 2}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Values() = %v, want %v (insertion order)", got, want)
+	}
+	o.SortKeys(sort.Strings)
+	got = o.Values()
+	want = []interface{}{1, 2, 3}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Values() after SortKeys = %v, want %v", got, want)
 	}
 }
 

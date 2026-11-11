@@ -91,8 +91,13 @@ func (o *OrderedMap) Keys() []string {
 	return o.keys
 }
 
-func (o *OrderedMap) Values() map[string]interface{} {
-	return o.values
+// Values returns the values in key order.
+func (o *OrderedMap) Values() []interface{} {
+	v := make([]interface{}, len(o.keys))
+	for i, k := range o.keys {
+		v[i] = o.values[k]
+	}
+	return v
 }
 
 // SortKeys sorts the map keys using the provided sort func.
